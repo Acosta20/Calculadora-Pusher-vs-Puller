@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preview — Pusher vs Puller | Reucherfit</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+    /* ── Themes ── */
+    body.dark  { --bg: #000; --surface: #0D0D0D; --card: #141414; --border: #2A2A2A;
+                 --text: #fff; --muted: #888; --btn-bg: #fff; --btn-text: #000;
+                 --inp-bg: #0D0D0D; --inp-bdr: #333; --badge-bg: #fff; --badge-txt: #000;
+                 --bar-bg: #1A1A1A; --tip-bg: #141414; --tip-bdr: #2A2A2A;
+                 --green-bg:#0A1F0A; --green-bdr:#1E5C1E; --green-txt:#4ADE80;
+                 --fill: #4ADE80; }
+    body.light { --bg: #fff; --surface: #F8F8F8; --card: #F0F0F0; --border: #E0E0E0;
+                 --text: #000; --muted: #666; --btn-bg: #000; --btn-text: #fff;
+                 --inp-bg: #fff; --inp-bdr: #D0D0D0; --badge-bg: #000; --badge-txt: #fff;
+                 --bar-bg: #E5E5E5; --tip-bg: #F7F7F7; --tip-bdr: #E0E0E0;
+                 --green-bg:#ECFDF5; --green-bdr:#6EE7B7; --green-txt:#065F46;
+                 --fill: #059669; }
+
+    body { background: var(--bg); color: var(--text); transition: background .3s, color .3s; min-height: 100vh; }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px 48px; }
+
+    /* ── Header ── */
+    .header { display: flex; align-items: center; justify-content: space-between;
+              padding: 28px 0 22px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+    .header-left h1 { font-size: 28px; font-weight: 900; letter-spacing: -0.5px; }
+    .header-left p  { font-size: 13px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+    .badge { display: inline-block; background: var(--badge-bg); color: var(--badge-txt);
+             font-size: 11px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;
+             padding: 4px 11px; border-radius: 20px; }
+    .toggle-btn { background: var(--card); border: 1px solid var(--border); color: var(--text);
+                  font-size: 13px; font-weight: 500; padding: 9px 18px; border-radius: 9px;
+                  cursor: pointer; transition: opacity .2s; }
+    .toggle-btn:hover { opacity: .7; }
+
+    /* ── Instrucción ── */
+    .subtitle { font-size: 14px; color: var(--muted); line-height: 1.7; margin-bottom: 24px; }
+
+    /* ── Inputs grid ── */
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+            padding: 22px 22px 18px; }
+    .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: 2px; color: var(--muted); margin-bottom: 16px; }
+
+    /* ── Input field ── */
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 500; color: var(--muted);
+                   margin-bottom: 5px; letter-spacing: 0.2px; }
+    .field input { width: 100%; background: var(--inp-bg); color: var(--text);
+                   border: 1px solid var(--inp-bdr); border-radius: 8px; padding: 10px 13px;
+                   font-size: 14px; outline: none; transition: border-color .2s; }
+    .field input:focus { border-color: var(--text); }
+    .field .hint { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+
+    /* ── Botón calcular ── */
+    .btn-row { display: flex; justify-content: center; margin: 20px 0 0; }
+    .calc-btn { background: var(--btn-bg); color: var(--btn-text); border: none;
+                border-radius: 10px; font-weight: 700; font-size: 15px; letter-spacing: 0.8px;
+                text-transform: uppercase; padding: 15px 60px; cursor: pointer;
+                transition: opacity .2s, transform .1s; }
+    .calc-btn:hover { opacity: .85; transform: translateY(-1px); }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+    /* ── Resultado ── */
+    .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                     letter-spacing: 2px; color: var(--muted); margin-bottom: 16px; }
+    .result-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; }
+
+    .result-card { background: var(--green-bg); border: 1px solid var(--green-bdr);
+                   border-radius: 14px; padding: 28px 30px; }
+    .result-tag { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: 2px; color: var(--muted); margin-bottom: 10px; }
+    .result-type { font-size: 26px; font-weight: 900; color: var(--green-txt); }
+    .result-index { font-size: 48px; font-weight: 900; letter-spacing: -2px;
+                    line-height: 1; margin: 14px 0 4px; color: var(--green-txt); }
+    .result-index-lbl { font-size: 12px; font-weight: 600; text-transform: uppercase;
+                        letter-spacing: 1.5px; color: var(--muted); }
+    .bar-bg { background: var(--bar-bg); border-radius: 6px; height: 8px; width: 100%;
+              margin: 14px 0 6px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--fill); border-radius: 6px;
+                width: 83%; /* 2.50/3.0 = ~83% */ transition: width .4s; }
+    .bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+    .tip-card { background: var(--tip-bg); border: 1px solid var(--tip-bdr);
+                border-radius: 10px; padding: 16px 20px; margin-top: 14px; }
+    .tip-title { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                 letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+    .tip-body { font-size: 13px; line-height: 1.65; color: var(--text); }
+
+    /* ── Ratio rows ── */
+    .ratio-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
+    .ratio-row { display: flex; justify-content: space-between; align-items: center;
+                 padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .ratio-row:last-child { border-bottom: none; }
+    .ratio-key { color: var(--muted); }
+    .ratio-val { font-weight: 600; }
+
+    /* ── Footer ── */
+    .footer { text-align: center; padding: 12px 0 28px; font-size: 12px; color: var(--muted); }
+
+    @media (max-width: 768px) {
+      .grid-3, .result-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="dark">
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <h1>PUSHER VS PULLER</h1>
+      <p>Calculadora Biomecánica &nbsp;·&nbsp; <span class="badge">By Reucherfit</span></p>
+    </div>
+    <button class="toggle-btn" onclick="toggleTheme()" id="toggle-btn">☀️ Modo Claro</button>
+  </div>
+
+  <!-- SUBTÍTULO -->
+  <p class="subtitle">
+    Ingresa tus medidas corporales, ángulos de movilidad y ratios de fuerza.
+    El algoritmo calculará tu perfil biomecánico y te clasificará como
+    <strong>Pusher</strong>, <strong>Puller</strong> o <strong>Mixto</strong>.
+  </p>
+
+  <!-- INPUTS EN 3 COLUMNAS -->
+  <div class="grid-3">
+
+    <div class="card">
+      <p class="card-title">📐 Medidas Corporales</p>
+      <div class="field"><label>Fémur (cm)</label><input type="number" value="50.00" /></div>
+      <div class="field"><label>Tibia (cm)</label><input type="number" value="42.00" /></div>
+      <div class="field"><label>Torso (cm)</label><input type="number" value="30.00" /></div>
+      <div class="field"><label>Brazo (cm)</label><input type="number" value="70.00" /></div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">🔄 Ángulos de Movilidad</p>
+      <div class="field"><label>Dorsiflexión (°)</label><input type="number" value="25.00" /></div>
+      <div class="field"><label>Flexión de Cadera (°)</label><input type="number" value="20.00" /></div>
+      <div class="field"><label>Flexión de Hombro (°)</label><input type="number" value="18.00" /></div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">💥 Ratios de Fuerza</p>
+      <div class="field"><label>Fuerza Sentadilla (rel.)</label><input type="number" value="2.00" /></div>
+      <div class="field"><label>Fuerza Peso Muerto (rel.)</label><input type="number" value="1.00" /></div>
+      <p class="hint" style="margin-top:14px;">
+        Usa valores relativos a tu peso corporal.<br>
+        Ej: Sentadilla 1.5× y Peso Muerto 2.0×
+      </p>
+    </div>
+
+  </div>
+
+  <!-- BOTÓN -->
+  <div class="btn-row">
+    <button class="calc-btn">⚡ Calcular mi Perfil</button>
+  </div>
+
+  <hr />
+
+  <!-- RESULTADO (ejemplo: Pusher) -->
+  <p class="section-label">📊 Tu Resultado</p>
+  <div class="result-grid">
+
+    <div>
+      <div class="result-card">
+        <p class="result-tag">🦵 Clasificación</p>
+        <p class="result-type">Pusher — Hip Squatter</p>
+        <p class="result-index">2.50</p>
+        <p class="result-index-lbl">Índice de Clasificación</p>
+        <div class="bar-bg"><div class="bar-fill"></div></div>
+        <div class="bar-labels">
+          <span>0.0 — Puller</span><span>1.5</span><span>2.0</span><span>3.0 — Pusher</span>
+        </div>
+      </div>
+
+      <div class="tip-card">
+        <p class="tip-title">💡 ¿Qué significa?</p>
+        <p class="tip-body">
+          Tus proporciones favorecen la sentadilla profunda (Hip Squatter).
+          Tu fémur largo relativo a tu torso, junto con buena movilidad de cadera,
+          te permite generar fuerza eficientemente desde las caderas.
+          Entrena sentadillas, sumo y variantes de empuje.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div class="ratio-card">
+        <p class="card-title">📋 Desglose de Ratios</p>
+        <div class="ratio-row"><span class="ratio-key">Fémur / Torso</span><span class="ratio-val">1.667</span></div>
+        <div class="ratio-row"><span class="ratio-key">Tibia / Fémur</span><span class="ratio-val">0.840</span></div>
+        <div class="ratio-row"><span class="ratio-key">Brazo / Torso</span><span class="ratio-val">2.333</span></div>
+        <div class="ratio-row"><span class="ratio-key">Sentadilla / P. Muerto</span><span class="ratio-val">2.000</span></div>
+      </div>
+
+      <div class="ratio-card">
+        <p class="card-title">⚖️ Escala de Referencia</p>
+        <div class="ratio-row"><span class="ratio-key">Puller puro</span><span class="ratio-val">&lt; 1.50</span></div>
+        <div class="ratio-row"><span class="ratio-key">Mixto</span><span class="ratio-val">1.50 — 2.00</span></div>
+        <div class="ratio-row"><span class="ratio-key">Pusher puro</span><span class="ratio-val">&gt; 2.00</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <hr />
+  <div class="footer">
+    Calculadora Biomecánica &nbsp;·&nbsp; <strong>By Reucherfit</strong> &nbsp;·&nbsp; Todos los derechos reservados
+  </div>
+
+</div>
+
+<script>
+  function toggleTheme() {
+    const body = document.body;
+    const btn  = document.getElementById('toggle-btn');
+    if (body.classList.contains('dark')) {
+      body.classList.replace('dark', 'light');
+      btn.textContent = '🌙 Modo Oscuro';
+    } else {
+      body.classList.replace('light', 'dark');
+      btn.textContent = '☀️ Modo Claro';
+    }
+  }
+</script>
+</body>
+</html>
