@@ -119,6 +119,14 @@ function distance3D(a, b) {
     );
 }
 
+/** Euclidean distance between two landmarks using only X and Y (ignores noisy Z from single camera) */
+function distanceLandmark2D(a, b) {
+    return Math.sqrt(
+        (a.x - b.x) ** 2 +
+        (a.y - b.y) ** 2
+    );
+}
+
 /** Euclidean distance between two 2D points (pixel coordinates) */
 function distance2D(x1, y1, x2, y2) {
     return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
@@ -179,28 +187,30 @@ function calculateMeasurements(landmarks) {
         if (!isVisible(lm[idx])) return null;
     }
 
-    // ── Calculate pixel distances (using normalized x, y) ──
+    // ── Calculate distances using 2D (X, Y only) ──
+    // Note: We use 2D distances because MediaPipe's Z from a single camera
+    // is unreliable and inflates measurements significantly.
 
     // Torso: shoulder to hip (average of both sides)
-    const torsoLeft = distance3D(lm[LANDMARKS.LEFT_SHOULDER], lm[LANDMARKS.LEFT_HIP]);
-    const torsoRight = distance3D(lm[LANDMARKS.RIGHT_SHOULDER], lm[LANDMARKS.RIGHT_HIP]);
+    const torsoLeft = distanceLandmark2D(lm[LANDMARKS.LEFT_SHOULDER], lm[LANDMARKS.LEFT_HIP]);
+    const torsoRight = distanceLandmark2D(lm[LANDMARKS.RIGHT_SHOULDER], lm[LANDMARKS.RIGHT_HIP]);
     const torso = (torsoLeft + torsoRight) / 2;
 
     // Femur: hip to knee (average of both sides)
-    const femurLeft = distance3D(lm[LANDMARKS.LEFT_HIP], lm[LANDMARKS.LEFT_KNEE]);
-    const femurRight = distance3D(lm[LANDMARKS.RIGHT_HIP], lm[LANDMARKS.RIGHT_KNEE]);
+    const femurLeft = distanceLandmark2D(lm[LANDMARKS.LEFT_HIP], lm[LANDMARKS.LEFT_KNEE]);
+    const femurRight = distanceLandmark2D(lm[LANDMARKS.RIGHT_HIP], lm[LANDMARKS.RIGHT_KNEE]);
     const femur = (femurLeft + femurRight) / 2;
 
     // Tibia: knee to ankle (average of both sides)
-    const tibiaLeft = distance3D(lm[LANDMARKS.LEFT_KNEE], lm[LANDMARKS.LEFT_ANKLE]);
-    const tibiaRight = distance3D(lm[LANDMARKS.RIGHT_KNEE], lm[LANDMARKS.RIGHT_ANKLE]);
+    const tibiaLeft = distanceLandmark2D(lm[LANDMARKS.LEFT_KNEE], lm[LANDMARKS.LEFT_ANKLE]);
+    const tibiaRight = distanceLandmark2D(lm[LANDMARKS.RIGHT_KNEE], lm[LANDMARKS.RIGHT_ANKLE]);
     const tibia = (tibiaLeft + tibiaRight) / 2;
 
     // Humero (upper arm): shoulder to elbow
     let humero = null;
     if (isVisible(lm[LANDMARKS.LEFT_ELBOW]) && isVisible(lm[LANDMARKS.RIGHT_ELBOW])) {
-        const humLeft = distance3D(lm[LANDMARKS.LEFT_SHOULDER], lm[LANDMARKS.LEFT_ELBOW]);
-        const humRight = distance3D(lm[LANDMARKS.RIGHT_SHOULDER], lm[LANDMARKS.RIGHT_ELBOW]);
+        const humLeft = distanceLandmark2D(lm[LANDMARKS.LEFT_SHOULDER], lm[LANDMARKS.LEFT_ELBOW]);
+        const humRight = distanceLandmark2D(lm[LANDMARKS.RIGHT_SHOULDER], lm[LANDMARKS.RIGHT_ELBOW]);
         humero = (humLeft + humRight) / 2;
     }
 
@@ -208,8 +218,8 @@ function calculateMeasurements(landmarks) {
     let antebrazo = null;
     if (isVisible(lm[LANDMARKS.LEFT_ELBOW]) && isVisible(lm[LANDMARKS.RIGHT_ELBOW]) &&
         isVisible(lm[LANDMARKS.LEFT_WRIST]) && isVisible(lm[LANDMARKS.RIGHT_WRIST])) {
-        const antLeft = distance3D(lm[LANDMARKS.LEFT_ELBOW], lm[LANDMARKS.LEFT_WRIST]);
-        const antRight = distance3D(lm[LANDMARKS.RIGHT_ELBOW], lm[LANDMARKS.RIGHT_WRIST]);
+        const antLeft = distanceLandmark2D(lm[LANDMARKS.LEFT_ELBOW], lm[LANDMARKS.LEFT_WRIST]);
+        const antRight = distanceLandmark2D(lm[LANDMARKS.RIGHT_ELBOW], lm[LANDMARKS.RIGHT_WRIST]);
         antebrazo = (antLeft + antRight) / 2;
     }
 
@@ -222,27 +232,23 @@ function calculateMeasurements(landmarks) {
     // Wingspan: wrist to wrist through shoulders
     let wingspan = null;
     if (isVisible(lm[LANDMARKS.LEFT_WRIST]) && isVisible(lm[LANDMARKS.RIGHT_WRIST])) {
-        const leftArm = distance3D(lm[LANDMARKS.LEFT_WRIST], lm[LANDMARKS.LEFT_SHOULDER]);
-        const shoulderWidth = distance3D(lm[LANDMARKS.LEFT_SHOULDER], lm[LANDMARKS.RIGHT_SHOULDER]);
-        const rightArm = distance3D(lm[LANDMARKS.RIGHT_SHOULDER], lm[LANDMARKS.RIGHT_WRIST]);
+        const leftArm = distanceLandmark2D(lm[LANDMARKS.LEFT_WRIST], lm[LANDMARKS.LEFT_SHOULDER]);
+        const shoulderWidth = distanceLandmark2D(lm[LANDMARKS.LEFT_SHOULDER], lm[LANDMARKS.RIGHT_SHOULDER]);
+        const rightArm = distanceLandmark2D(lm[LANDMARKS.RIGHT_SHOULDER], lm[LANDMARKS.RIGHT_WRIST]);
         wingspan = leftArm + shoulderWidth + rightArm;
     }
 
     // Estimate full body height in normalized coordinates for scaling
     // Use head top estimation (above nose) to ankle
-    const headTop = {
-        x: lm[LANDMARKS.NOSE].x,
-        y: lm[LANDMARKS.NOSE].y - (lm[LANDMARKS.NOSE].y - lm[LANDMARKS.LEFT_EYE].y) * 4,
-        z: lm[LANDMARKS.NOSE].z,
-    };
-    const midAnkle = {
-        x: (lm[LANDMARKS.LEFT_ANKLE].x + lm[LANDMARKS.RIGHT_ANKLE].x) / 2,
-        y: (lm[LANDMARKS.LEFT_ANKLE].y + lm[LANDMARKS.RIGHT_ANKLE].y) / 2,
-        z: (lm[LANDMARKS.LEFT_ANKLE].z + lm[LANDMARKS.RIGHT_ANKLE].z) / 2,
-    };
+    // The distance nose→eye * 4 approximates the crown of the head
+    const noseY = lm[LANDMARKS.NOSE].y;
+    const eyeY = lm[LANDMARKS.LEFT_EYE].y;
+    const headTopY = noseY - Math.abs(noseY - eyeY) * 4;
 
-    // Use vertical distance (y-axis) primarily for height since camera faces front
-    const bodyHeightNorm = Math.abs(midAnkle.y - headTop.y);
+    const midAnkleY = (lm[LANDMARKS.LEFT_ANKLE].y + lm[LANDMARKS.RIGHT_ANKLE].y) / 2;
+
+    // Use vertical distance (y-axis only) for height since camera faces front
+    const bodyHeightNorm = Math.abs(midAnkleY - headTopY);
 
     // Scale factor: user's real height in cm / detected height in normalized coords
     const scaleCm = state.userHeightCm / bodyHeightNorm;
@@ -413,9 +419,9 @@ function drawPose(landmarks, measurements) {
 
     const lm = landmarks;
 
-    // Helper: convert normalized coords to pixel coords
+    // Helper: convert normalized coords to pixel coords (mirror X for selfie camera)
     function toPixel(landmark) {
-        return { x: landmark.x * w, y: landmark.y * h };
+        return { x: w - landmark.x * w, y: landmark.y * h };
     }
 
     // Helper: draw a line segment with label
